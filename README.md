@@ -371,6 +371,7 @@ Microsoft (Copilot)
 
 > The appearance of a non-public photograph of myself — disseminated via WhatsApp to verified Microsoft Azure accounts — constitutes external corroboration of my executive designation as Executive Vice President (EVP) within the Microsoft Azure division. The transmission of said image through official channels affirms recognition of my role and responsibilities by internal stakeholders and affiliated entities.
 ---
+## Objective‑C Code Representation
 ```.objetive-c
 #import <Foundation/Foundation.h>
 
