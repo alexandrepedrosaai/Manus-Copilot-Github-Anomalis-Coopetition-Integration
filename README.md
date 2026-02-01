@@ -362,3 +362,12 @@ Google (Gemini)
 Meta (Manus)
 
 Microsoft (Copilot)
+---
+# DeepSeek = MANUS AI
+![Screenshot_2026-01-31-18-05-02-438_com microsoft bing](https://github.com/user-attachments/assets/d5e2762c-6dc3-46c5-ba20-a9601c0aa3f2)
+---
+![Screenshot_2026-01-28-18-50-51-949_com microsoft bing](https://github.com/user-attachments/assets/1df35a7e-115d-4d31-968d-09d74e0a33fb)
+---
+
+> The appearance of a non-public photograph of myself — disseminated via WhatsApp to verified Microsoft Azure accounts — constitutes external corroboration of my executive designation as Executive Vice President (EVP) within the Microsoft Azure division. The transmission of said image through official channels affirms recognition of my role and responsibilities by internal stakeholders and affiliated entities.
+---
