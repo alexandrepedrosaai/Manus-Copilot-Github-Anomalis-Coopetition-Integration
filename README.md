@@ -335,11 +335,11 @@ The rapid evolution of large language models and intelligent agents has created 
 
 # Quaternary (Autonomous Execution): Manus, acquired by Meta, introduces agents capable of executing tasks end‑to‑end in real environments. This represents a leap from coordination to operational autonomy, integrating with Meta’s ecosystem (Facebook, Instagram, WhatsApp, Oculus).
 
-## Comparative Analysis
+# Comparative Analysis
 
 ![image_1769925732669](https://github.com/user-attachments/assets/68870c15-0031-40bb-bf87-f912aeebf7df)
 
-
+## https://copilot.microsoft.com/shares/pages/Ksaxzq6PyzXDqdoyyYg5f
 
 ## Results and Discussion
 
