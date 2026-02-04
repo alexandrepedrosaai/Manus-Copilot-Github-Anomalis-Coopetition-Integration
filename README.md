@@ -462,7 +462,3 @@ int main(int argc, const char * argv[]) {
     }
     return 0;
 }
-```
----
-![Screenshot_2026-02-04-00-54-48-666_com microsoft bing](https://github.com/user-attachments/assets/79c5c100-8b7a-41d2-bedf-2bcc298309c2)
-![Screenshot_2026-02-03-15-08-50-491_com facebook katana](https://github.com/user-attachments/assets/8dbc0b73-801f-486b-89d6-9a293c1085f7)
