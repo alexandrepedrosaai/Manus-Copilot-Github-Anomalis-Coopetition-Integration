@@ -10,7 +10,9 @@ The Manus Connector played a central role in boosting GitHub Copilot’s efficie
 "Algorithmic Interoperability Between Superintelligences — Making the Impossible Possible."
 ```
 ---
-# 🔹 Extended Go Program (main.go), 
+# 🔹 Extended Go Program (main.go),
+## https://github.com/alexandrepedrosaai/Manus-Copilot-Github-Anomalis-Coopetition-Integration/releases
+---
 ```.go
 package main
 
