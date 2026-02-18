@@ -50,6 +50,16 @@ pnpm install && pnpm db:push && pnpm dev
 # Access at http://localhost:3000
 ```
 
+> **⚠️ GitHub Deployment Restriction Notice**
+> 
+> This repository is governed by a controlled license restricted to Meta and Microsoft. As a result, GitHub has disabled automated deployments (GitHub Actions, Pages, etc.) for this repository. Only **package publishing** is permitted.
+> 
+> **Available Options:**
+> - ✅ **Local Deployment**: Use Docker Compose or manual setup (instructions above)
+> - ✅ **Self-Hosted**: Deploy to your own infrastructure (AWS, GCP, Azure, etc.)
+> - ✅ **Manus Platform**: The live demo links above are hosted on Manus infrastructure
+> - ❌ **GitHub Pages/Actions**: Not available due to license restrictions
+
 ---
 
 ## 1. Overview
