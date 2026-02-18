@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: manus-copilot-service
+  labels:
+    app: manus-copilot
+spec:
+  type: LoadBalancer
+  selector:
+    app: manus-copilot
+    component: server
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  sessionAffinity: ClientIP
