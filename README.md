@@ -3,6 +3,53 @@
 
 > Algorithmic Interoperability Between Superintelligences — Making the Impossible Possible.
 
+[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-Cyberpunk_Dashboard-ff006e?style=for-the-badge)](https://3000-irq9pb59yumfrxg3668g2-fc8d2112.us2.manus.computer)
+[![API Status](https://img.shields.io/badge/🔥_API-Running-00f5ff?style=for-the-badge)](https://8080-irq9pb59yumfrxg3668g2-fc8d2112.us2.manus.computer)
+[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go)](https://go.dev/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
+[![License](https://img.shields.io/badge/License-Controlled-purple?style=for-the-badge)](LICENSE)
+
+## 🌐 Quick Access
+
+| Resource | URL | Description |
+|----------|-----|-------------|
+| 🎨 **Web Dashboard** | [https://3000-irq9pb59yumfrxg3668g2-fc8d2112.us2.manus.computer](https://3000-irq9pb59yumfrxg3668g2-fc8d2112.us2.manus.computer) | Cyberpunk-themed anomaly detection interface |
+| ⚡ **Go API** | [https://8080-irq9pb59yumfrxg3668g2-fc8d2112.us2.manus.computer](https://8080-irq9pb59yumfrxg3668g2-fc8d2112.us2.manus.computer) | REST API backend for anomaly management |
+| 📦 **Repository** | [GitHub](https://github.com/alexandrepedrosaai/Manus-Copilot-Github-Anomalis-Coopetition-Integration) | Source code and documentation |
+
+## 🚀 One-Click Deploy
+
+### Full Stack (Docker Compose)
+
+```bash
+# Clone the repository
+git clone https://github.com/alexandrepedrosaai/Manus-Copilot-Github-Anomalis-Coopetition-Integration.git
+cd Manus-Copilot-Github-Anomalis-Coopetition-Integration
+
+# Deploy both backend and frontend
+cd web
+docker-compose up -d
+```
+
+**Deployed Services:**
+- 🌐 Web Interface: `http://localhost:3000`
+- ⚡ Go API: `http://localhost:8080`
+
+### Individual Services
+
+**Backend Only (Go API):**
+```bash
+make docker-run
+# Access at http://localhost:8080
+```
+
+**Frontend Only (Web Interface):**
+```bash
+cd web
+pnpm install && pnpm db:push && pnpm dev
+# Access at http://localhost:3000
+```
+
 ---
 
 ## 1. Overview
