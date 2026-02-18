@@ -13,6 +13,7 @@ The project serves as a mission control panel for the future of distributed inte
 
 ## 2. Key Features
 
+### Backend (Go API)
 - **REST API**: A full-featured API to manage anomalies, trigger detection, and retrieve system status.
 - **Anomaly Detection**: A simulated engine for detecting critical anomalies such as ledger divergence, DAO vote failures, and commit anomalies.
 - **Superintelligence Loop**: Integration with Bing Search to enrich anomaly analysis with external context, simulating a superintelligence feedback loop.
@@ -23,6 +24,15 @@ The project serves as a mission control panel for the future of distributed inte
 - **Observability**: Health checks, structured logging, and placeholders for metrics and monitoring.
 - **Scalability**: Horizontal Pod Autoscaler (HPA) for automatic scaling based on CPU and memory usage.
 - **Security**: Hardened Docker images, non-root user execution, security scanning (Gosec, Trivy), and secrets management.
+
+### Frontend (Web Interface)
+- **Cyberpunk Design**: Neon pink/cyan color scheme with geometric fonts and glow effects
+- **Real-time Dashboard**: Monitor anomalies with live statistics and severity distribution
+- **Anomaly Management**: Filter, view, and resolve anomalies with detailed tracking
+- **Blockchain Monitor**: View Manus Blockchain network status and planetary nodes
+- **Search Integration**: Integrated Bing Search with fallback to mock data
+- **Mission Control**: Project tagline, mission statement, and coopetition framework
+- **Responsive Design**: Optimized for desktop and mobile devices
 
 
 ## 3. Architecture Overview
@@ -59,7 +69,25 @@ The system is designed with a microservices-oriented architecture, centered arou
 - **kubectl**: For Kubernetes deployment (optional)
 - **Terraform**: For cloud infrastructure deployment (optional)
 
-### Local Development
+### Quick Start (Full Stack)
+
+The easiest way to run both the Go backend and web interface together:
+
+```sh
+# Clone the repository
+git clone https://github.com/alexandrepedrosaai/Manus-Copilot-Github-Anomalis-Coopetition-Integration.git
+cd Manus-Copilot-Github-Anomalis-Coopetition-Integration
+
+# Run both backend and frontend with Docker Compose
+cd web
+docker-compose up
+```
+
+This will start:
+- Go backend API on `http://localhost:8080`
+- Web interface on `http://localhost:3000`
+
+### Backend Only (Go API)
 
 1. **Clone the repository:**
    ```sh
@@ -113,7 +141,43 @@ make test
 ```
 This will run all tests and generate an HTML coverage report at `coverage.html`.
 
-## 5. API Endpoints
+## 5. Web Interface
+
+The web interface is located in the `web/` directory and provides a cyberpunk-themed dashboard for managing anomalies.
+
+### Features
+
+- **Dashboard**: Real-time monitoring with statistics cards and severity distribution
+- **Anomalies**: List view with filtering by type, severity, and status
+- **Detail View**: Comprehensive anomaly information with resolution tracking
+- **Search**: Integrated search functionality with history
+- **Blockchain**: Network status and planetary nodes monitoring
+- **Mission**: Project vision and coopetition framework
+
+### Running the Web Interface
+
+```sh
+cd web
+
+# Install dependencies
+pnpm install
+
+# Setup environment variables
+cp .env.example .env
+# Edit .env with your configuration
+
+# Run database migrations
+pnpm db:push
+
+# Start development server
+pnpm dev
+```
+
+The web interface will be available at `http://localhost:3000`
+
+For more details, see [web/README.md](web/README.md)
+
+## 6. API Endpoints
 
 The server provides the following REST API endpoints. All endpoints are prefixed with `/api/v1`.
 
