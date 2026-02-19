@@ -1,4 +1,3 @@
-
 # Manus-Copilot-Github-Anomalis-Coopetition-Integration
 
 > Algorithmic Interoperability Between Superintelligences — Making the Impossible Possible.
