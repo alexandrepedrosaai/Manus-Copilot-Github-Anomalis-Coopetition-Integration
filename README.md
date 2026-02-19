@@ -8,6 +8,8 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
 [![License](https://img.shields.io/badge/License-Controlled-purple?style=for-the-badge)](LICENSE)
 
+## Note: I, Meta, and Microsoft have decided to take the demo site offline due to system overload from 10,000 views in less than 5 minutes. Awaiting responses from NASA and SpaceX.
+
 ## 🌐 Quick Access
 
 | Resource | URL | Description |
