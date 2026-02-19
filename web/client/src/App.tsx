@@ -10,6 +10,7 @@ import AnomalyDetail from "./pages/AnomalyDetail";
 import Search from "./pages/Search";
 import Blockchain from "./pages/Blockchain";
 import Mission from "./pages/Mission";
+import Metrics from "./pages/Metrics";
 
 function Router() {
   return (
@@ -20,6 +21,7 @@ function Router() {
       <Route path={"/search"} component={Search} />
       <Route path={"/blockchain"} component={Blockchain} />
       <Route path={"/mission"} component={Mission} />
+      <Route path={"/metrics"} component={Metrics} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

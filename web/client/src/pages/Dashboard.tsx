@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Activity, CheckCircle2, Clock, Zap, Search as SearchIcon, Globe, Target } from "lucide-react";
+import { AlertTriangle, Activity, CheckCircle2, Clock, Zap, Search as SearchIcon, Globe, Target, BarChart3 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Link } from "wouter";
@@ -76,6 +76,12 @@ export default function Dashboard() {
                 Mission
               </Button>
             </Link>
+            <Link href="/metrics">
+              <Button variant="outline" size="sm">
+                <BarChart3 className="mr-2 h-4 w-4" />
+                Metrics
+              </Button>
+            </Link>
             <Button 
               onClick={handleDetect}
               disabled={isDetecting}
@@ -98,6 +104,7 @@ export default function Dashboard() {
         </div>
 
         {/* Stats Cards */}
+        <h2 className="text-2xl font-bold neon-glow-cyan mb-4">System Overview</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="border-primary/30 neon-border-pink">
             <CardHeader className="pb-2">
@@ -148,10 +155,11 @@ export default function Dashboard() {
         </div>
 
         {/* Severity Distribution */}
-        {stats && (
-          <Card className="border-primary/20">
+        <h2 className="text-2xl font-bold neon-glow-cyan mb-4">Anomaly Analytics</h2>
+        {!statsLoading && stats && (
+          <Card className="cyberpunk-card">
             <CardHeader>
-              <CardTitle className="neon-glow-cyan">Severity Distribution</CardTitle>
+              <CardTitle className="neon-glow-pink">Severity Distribution</CardTitle>
               <CardDescription>Anomalies grouped by severity level</CardDescription>
             </CardHeader>
             <CardContent>
@@ -172,17 +180,16 @@ export default function Dashboard() {
         )}
 
         {/* Recent Anomalies */}
-        <Card className="border-secondary/20">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="neon-glow-pink">Recent Anomalies</CardTitle>
-                <CardDescription>Latest detected anomalies in the system</CardDescription>
-              </div>
-              <Link href="/anomalies">
-                <Button variant="outline" size="sm">View All</Button>
-              </Link>
+        <h2 className="text-2xl font-bold neon-glow-cyan mb-4">Latest Detections</h2>
+        <Card className="cyberpunk-card">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="neon-glow-pink">Recent Anomalies</CardTitle>
+              <CardDescription>Latest detected anomalies in the system</CardDescription>
             </div>
+            <Link href="/anomalies">
+              <Button variant="outline" size="sm">View All</Button>
+            </Link>
           </CardHeader>
           <CardContent>
             {anomaliesLoading ? (
@@ -226,6 +233,16 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Footer */}
+      <footer className="mt-12 pt-6 border-t border-border/30 text-center">
+        <p className="text-sm text-muted-foreground">
+          Created by <span className="neon-glow-cyan font-semibold">Alexandre Pedrosa</span>
+        </p>
+        <p className="text-xs text-muted-foreground/60 mt-1">
+          © {new Date().getFullYear()} Manus Copilot Integration. All rights reserved.
+        </p>
+      </footer>
     </div>
   );
 }
