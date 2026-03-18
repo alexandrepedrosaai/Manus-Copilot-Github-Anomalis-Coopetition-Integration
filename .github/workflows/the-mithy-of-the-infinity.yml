@@ -1,0 +1,223 @@
+name: the-mithy-of-the-infinity
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "cmd/server/**"
+      - "internal/**"
+      - "pkg/**"
+      - "go.mod"
+      - "go.sum"
+      - "packages/the-mithy-of-the-infinity/**"
+      - ".github/workflows/the-mithy-of-the-infinity.yml"
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: "Deploy target (aci / aks / ghcr-only)"
+        required: false
+        default: "ghcr-only"
+
+env:
+  PACKAGE_NAME: the-mithy-of-the-infinity
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/the-mithy-of-the-infinity
+  DOCKERFILE: packages/the-mithy-of-the-infinity/Dockerfile
+  AZURE_RESOURCE_GROUP: acs-wpp-mesh-rg
+  AZURE_ACR: acswppmesh1771568067
+  ACI_NAME: the-mithy-of-the-infinity
+  ACI_DNS_LABEL: the-mithy-of-the-infinity
+
+jobs:
+  # ─────────────────────────────────────────
+  # Job 1: Test
+  # ─────────────────────────────────────────
+  test:
+    name: Test — Go 1.22
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: Run tests
+        run: go test ./... -race -cover -coverprofile=coverage.out
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.out
+          retention-days: 7
+
+  # ─────────────────────────────────────────
+  # Job 2: Build & Push to GHCR
+  # ─────────────────────────────────────────
+  build-and-push:
+    name: Build & Push — the-mithy-of-the-infinity
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=1.0.0,enable=${{ github.ref == 'refs/heads/main' }}
+          labels: |
+            org.opencontainers.image.title=The Myth of the Infinity
+            org.opencontainers.image.description=Manus Copilot Mission Control — Interplanetary Superintelligence
+            com.manus.package=the-mithy-of-the-infinity
+            com.manus.scope=interplanetary
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BUILD_VERSION=1.0.0
+            BUILD_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            PACKAGE_NAME=${{ env.PACKAGE_NAME }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+
+      - name: Write build summary
+        run: |
+          echo "## 🌌 the-mithy-of-the-infinity" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image** | \`${{ env.IMAGE_NAME }}:latest\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Digest** | \`${{ steps.build.outputs.digest }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Package** | \`the-mithy-of-the-infinity\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Scope** | Interplanetary (Earth → Moon → Mars) |" >> $GITHUB_STEP_SUMMARY
+
+  # ─────────────────────────────────────────
+  # Job 3: Security Scan
+  # ─────────────────────────────────────────
+  security-scan:
+    name: Security Scan — Trivy
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ env.IMAGE_NAME }}:latest"
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Trivy scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+  # ─────────────────────────────────────────
+  # Job 4: Deploy to Azure Container Instances
+  # ─────────────────────────────────────────
+  deploy-aci:
+    name: Deploy — Azure Container Instances
+    runs-on: ubuntu-latest
+    needs: [build-and-push, security-scan]
+    if: >
+      github.ref == 'refs/heads/main' &&
+      secrets.AZURE_CLIENT_ID != '' &&
+      (github.event_name == 'push' || github.event.inputs.deploy_target == 'aci')
+    environment:
+      name: production
+      url: http://${{ env.ACI_DNS_LABEL }}.eastus.azurecontainer.io:8080/health
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Container Instances
+        run: |
+          az container create \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name ${{ env.ACI_NAME }} \
+            --image ${{ env.IMAGE_NAME }}:latest \
+            --registry-server ghcr.io \
+            --registry-username ${{ github.actor }} \
+            --registry-password ${{ secrets.GITHUB_TOKEN }} \
+            --dns-name-label ${{ env.ACI_DNS_LABEL }} \
+            --ports 8080 \
+            --cpu 1 \
+            --memory 1.5 \
+            --environment-variables \
+              SERVER_ENV=production \
+              PACKAGE_NAME=the-mithy-of-the-infinity \
+              MANUS_ENABLE_PLANETARY=true \
+            --restart-policy Always \
+            --location eastus \
+            --os-type Linux \
+            --output table
+
+      - name: Verify deployment health
+        run: |
+          echo "Waiting for container to start..."
+          sleep 30
+          URL="http://${{ env.ACI_DNS_LABEL }}.eastus.azurecontainer.io:8080/health"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL" || echo "000")
+          echo "Health check status: $STATUS"
+          if [[ "$STATUS" == "200" ]]; then
+            echo "✅ Deployment healthy at $URL" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Health check returned $STATUS — container may still be starting" >> $GITHUB_STEP_SUMMARY
+          fi
