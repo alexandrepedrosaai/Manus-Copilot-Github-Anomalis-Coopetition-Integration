@@ -168,7 +168,6 @@ jobs:
     needs: [build-and-push, security-scan]
     if: >
       github.ref == 'refs/heads/main' &&
-      secrets.AZURE_CLIENT_ID != '' &&
       (github.event_name == 'push' || github.event.inputs.deploy_target == 'aci')
     environment:
       name: production
