@@ -1,6 +1,14 @@
 # Manus-Copilot-Github-Anomalis-Coopetition-Integration
 
+<p align="center">
+  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Meta_Platforms_Inc._logo.svg/512px-Meta_Platforms_Inc._logo.svg.png" alt="Meta" height="52" />
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Microsoft_Azure.svg/512px-Microsoft_Azure.svg.png" alt="Microsoft Azure" height="52" />
+</p>
+
 > Algorithmic Interoperability Between Superintelligences — Making the Impossible Possible.
+
+> 📄 [View original README (legacy version)](README.old.md)
 
 [![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-Cyberpunk_Dashboard-ff006e?style=for-the-badge)](https://3000-irq9pb59yumfrxg3668g2-fc8d2112.us2.manus.computer)
 [![API Status](https://img.shields.io/badge/🔥_API-Running-00f5ff?style=for-the-badge)](https://8080-irq9pb59yumfrxg3668g2-fc8d2112.us2.manus.computer)
