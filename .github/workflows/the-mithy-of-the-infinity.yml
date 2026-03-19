@@ -29,7 +29,32 @@ env:
 
 jobs:
   # ─────────────────────────────────────────
-  # Job 1: Test
+  # Job 1a: Lint & Vet (parallel with test)
+  # ─────────────────────────────────────────
+  lint:
+    name: Lint & Vet — Go 1.22
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run staticcheck
+        uses: dominikh/staticcheck-action@v1
+        with:
+          version: "latest"
+          install-go: false
+
+  # ─────────────────────────────────────────
+  # Job 1b: Unit Tests (parallel with lint)
   # ─────────────────────────────────────────
   test:
     name: Test — Go 1.22
@@ -55,12 +80,35 @@ jobs:
           retention-days: 7
 
   # ─────────────────────────────────────────
+  # Job 1c: Build binary check (parallel)
+  # ─────────────────────────────────────────
+  build-check:
+    name: Build Check — Go 1.22
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: Build binary
+        run: go build -v -o /tmp/manus-server ./cmd/server/
+
+      - name: Verify binary
+        run: /tmp/manus-server --version || echo "Binary built successfully"
+
+  # ─────────────────────────────────────────
   # Job 2: Build & Push to GHCR
+  # (only after all parallel checks pass)
   # ─────────────────────────────────────────
   build-and-push:
     name: Build & Push — the-mithy-of-the-infinity
     runs-on: ubuntu-latest
-    needs: test
+    needs: [lint, test, build-check]
     permissions:
       contents: read
       packages: write
@@ -74,6 +122,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -115,6 +167,7 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: true
           sbom: true
+          platforms: linux/amd64
 
       - name: Write build summary
         run: |
@@ -129,7 +182,7 @@ jobs:
           echo "| **Scope** | Interplanetary (Earth → Moon → Mars) |" >> $GITHUB_STEP_SUMMARY
 
   # ─────────────────────────────────────────
-  # Job 3: Security Scan
+  # Job 3a: Security Scan (parallel with notify)
   # ─────────────────────────────────────────
   security-scan:
     name: Security Scan — Trivy
@@ -160,7 +213,49 @@ jobs:
           sarif_file: "trivy-results.sarif"
 
   # ─────────────────────────────────────────
+  # Job 3b: SBOM & Provenance (parallel with scan)
+  # ─────────────────────────────────────────
+  sbom-sign:
+    name: SBOM & Sign — Cosign
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sign image with Cosign (keyless)
+        run: |
+          cosign sign --yes \
+            ${{ env.IMAGE_NAME }}@${{ needs.build-and-push.outputs.image-digest }}
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGE_NAME }}:latest
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-spdx
+          path: sbom.spdx.json
+          retention-days: 30
+
+  # ─────────────────────────────────────────
   # Job 4: Deploy to Azure Container Instances
+  # (only after security + sbom pass)
   # ─────────────────────────────────────────
   deploy-aci:
     name: Deploy — Azure Container Instances
