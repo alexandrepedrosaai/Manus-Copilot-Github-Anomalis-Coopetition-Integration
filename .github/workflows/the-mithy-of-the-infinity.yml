@@ -29,215 +29,108 @@ env:
   ACI_DNS_LABEL: the-mithy-of-the-infinity
 
 jobs:
-  # ─────────────────────────────────────────
-  # Job 1a: Lint & Vet (parallel with test + build-check)
-  # ─────────────────────────────────────────
-  lint:
-    name: Lint & Vet — Go 1.22
+  # ══════════════════════════════════════════════════════════════
+  # TIER 1 — All run in parallel (no dependencies)
+  # ══════════════════════════════════════════════════════════════
+
+  # ── Job 01 ── go vet
+  j01-vet:
+    name: "01 · go vet"
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.22", cache: true }
+      - run: go vet ./...
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-          cache: true
-
-      - name: Run go vet
-        run: go vet ./...
-
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+  # ── Job 02 ── golangci-lint
+  j02-lint:
+    name: "02 · golangci-lint"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.22", cache: true }
+      - uses: golangci/golangci-lint-action@v6
         with:
           version: latest
           args: --timeout=5m --disable=typecheck
 
-  # ─────────────────────────────────────────
-  # Job 1b: Unit Tests (parallel with lint + build-check)
-  # ─────────────────────────────────────────
-  test:
-    name: Test — Go 1.22
+  # ── Job 03 ── unit tests + coverage
+  j03-test:
+    name: "03 · unit tests"
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-          cache: true
-
-      - name: Run tests
-        run: go test ./... -race -cover -coverprofile=coverage.out
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.22", cache: true }
+      - run: go test ./... -race -cover -coverprofile=coverage.out
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: coverage.out
           retention-days: 7
 
-  # ─────────────────────────────────────────
-  # Job 1c: Build Check — broken into granular steps
-  # Step 1: go build (compile all packages)
-  # Step 2: go build cmd/server (main binary)
-  # Step 3: Verify binary exists + is executable
-  # Step 4: Smoke-test binary (non-blocking)
-  # Step 5: Cross-compile linux/amd64 (production target)
-  # ─────────────────────────────────────────
-  build-check:
-    name: Build Check — Go 1.22
+  # ── Job 04 ── compile all packages
+  j04-compile:
+    name: "04 · compile all packages"
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.22", cache: true }
+      - run: go build ./...
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-          cache: true
-
-      # Step 1 — Compile all packages to catch import/type errors
-      - name: Step 1 — Compile all packages
-        run: go build ./...
-
-      # Step 2 — Build the main server binary
-      - name: Step 2 — Build server binary
-        run: go build -v -ldflags="-s -w" -o /tmp/manus-server ./cmd/server/
-
-      # Step 3 — Verify binary exists and is executable
-      - name: Step 3 — Verify binary exists
+  # ── Job 05 ── build server binary + smoke-test
+  j05-binary:
+    name: "05 · build binary + smoke-test"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.22", cache: true }
+      - name: Build server binary
         run: |
-          if [ ! -f /tmp/manus-server ]; then
-            echo "❌ Binary not found at /tmp/manus-server"
-            exit 1
-          fi
-          if [ ! -x /tmp/manus-server ]; then
-            echo "❌ Binary is not executable"
-            exit 1
-          fi
-          SIZE=$(du -sh /tmp/manus-server | cut -f1)
-          echo "✅ Binary exists and is executable (size: $SIZE)"
-
-      # Step 4 — Smoke-test: start server in background, probe /health, then kill it
-      - name: Step 4 — Smoke-test server startup
+          go build -v -ldflags="-s -w" -o /tmp/manus-server ./cmd/server/
+          echo "✅ Binary: $(du -sh /tmp/manus-server | cut -f1)"
+      - name: Smoke-test /health endpoint
         run: |
           export SERVER_PORT=18080
           export ENVIRONMENT=development
-          # Start server in background; it will block waiting for SIGINT
           /tmp/manus-server &
-          SERVER_PID=$!
-          echo "Server PID: $SERVER_PID"
-          # Wait for server to be ready (up to 10s)
+          PID=$!
           for i in $(seq 1 10); do
-            if curl -sf http://localhost:18080/health > /dev/null 2>&1; then
-              echo "✅ Server responded to /health on attempt $i"
-              kill $SERVER_PID 2>/dev/null || true
-              wait $SERVER_PID 2>/dev/null || true
-              exit 0
-            fi
-            echo "Attempt $i: waiting for server..."
+            curl -sf http://localhost:18080/health > /dev/null 2>&1 && \
+              echo "✅ /health OK (attempt $i)" && kill $PID && wait $PID 2>/dev/null && exit 0
             sleep 1
           done
-          # Server didn't respond to /health — check if it's still running
-          if kill -0 $SERVER_PID 2>/dev/null; then
-            echo "⚠️ Server is running but /health did not respond (may need env vars) — binary is valid"
-            kill $SERVER_PID 2>/dev/null || true
-            wait $SERVER_PID 2>/dev/null || true
-          else
-            echo "⚠️ Server exited early — binary built successfully, runtime config may be needed"
-          fi
+          kill -0 $PID 2>/dev/null && echo "⚠️ Running but /health silent — binary valid" && kill $PID || echo "⚠️ Exited early"
           exit 0
-
-      # Step 5 — Cross-compile for linux/amd64 (Docker production target)
-      - name: Step 5 — Cross-compile linux/amd64
+      - name: Cross-compile linux/amd64
         run: |
           GOOS=linux GOARCH=amd64 go build \
-            -v \
             -ldflags="-s -w -X main.version=1.0.0 -X main.commit=${{ github.sha }}" \
-            -o /tmp/manus-server-linux-amd64 \
-            ./cmd/server/
-          echo "✅ Cross-compiled binary: $(du -sh /tmp/manus-server-linux-amd64 | cut -f1)"
+            -o /tmp/manus-server-linux-amd64 ./cmd/server/
+          echo "✅ Cross-compiled: $(du -sh /tmp/manus-server-linux-amd64 | cut -f1)"
 
-      # Step 6 — Build summary
-      - name: Step 6 — Write build summary
-        run: |
-          echo "## 🔨 Build Check Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Compile all packages | ✅ Pass |" >> $GITHUB_STEP_SUMMARY
-          echo "| Build server binary | ✅ Pass |" >> $GITHUB_STEP_SUMMARY
-          echo "| Verify binary | ✅ Pass |" >> $GITHUB_STEP_SUMMARY
-          echo "| Smoke-test startup | ✅ Pass |" >> $GITHUB_STEP_SUMMARY
-          echo "| Cross-compile linux/amd64 | ✅ Pass |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+  # ══════════════════════════════════════════════════════════════
+  # TIER 2 — Docker layer cache warm-up (needs tier 1)
+  # ══════════════════════════════════════════════════════════════
 
-  # ─────────────────────────────────────────
-  # Job 2: Build & Push to GHCR
-  # Broken into granular steps:
-  #   Step 1 — Checkout + Buildx setup
-  #   Step 2 — GHCR login
-  #   Step 3 — Extract OCI metadata/tags
-  #   Step 4 — Build Docker image (deps stage only, cached)
-  #   Step 5 — Build Docker image (builder stage, cached)
-  #   Step 6 — Build & push final runtime image
-  #   Step 7 — Verify pushed image digest
-  #   Step 8 — Write build summary
-  # ─────────────────────────────────────────
-  build-and-push:
-    name: Build & Push — the-mithy-of-the-infinity
+  # ── Job 06 ── Docker deps layer (go mod download)
+  j06-docker-deps:
+    name: "06 · docker deps layer"
     runs-on: ubuntu-latest
-    needs: [lint, test, build-check]
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-    outputs:
-      image-digest: ${{ steps.push.outputs.digest }}
-      image-tag: ${{ steps.meta.outputs.version }}
+    needs: [j01-vet, j02-lint, j03-test, j04-compile, j05-binary]
     steps:
-      # Step 1 — Checkout source and set up Docker Buildx
-      - name: Step 1 — Checkout
-        uses: actions/checkout@v4
-
-      - name: Step 1 — Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: network=host
-
-      # Step 2 — Authenticate to GHCR
-      - name: Step 2 — Login to GHCR
-        uses: docker/login-action@v3
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Step 3 — Generate OCI-compliant image tags and labels
-      - name: Step 3 — Extract OCI metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha,prefix=sha-,format=short
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=1.0.0,enable=${{ github.ref == 'refs/heads/main' }}
-          labels: |
-            org.opencontainers.image.title=The Myth of the Infinity
-            org.opencontainers.image.description=Manus Copilot Mission Control — Interplanetary Superintelligence
-            com.manus.package=the-mithy-of-the-infinity
-            com.manus.scope=interplanetary
-
-      # Step 4 — Build deps stage only (warm the layer cache)
-      - name: Step 4 — Build deps layer (cache warm-up)
-        uses: docker/build-push-action@v5
+      - uses: docker/build-push-action@v5
         with:
           context: .
           file: ${{ env.DOCKERFILE }}
@@ -252,9 +145,20 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64
 
-      # Step 5 — Build builder stage (compile Go binary, cached)
-      - name: Step 5 — Build Go binary layer (builder stage)
-        uses: docker/build-push-action@v5
+  # ── Job 07 ── Docker builder layer (CGO_ENABLED=0 go build)
+  j07-docker-builder:
+    name: "07 · docker builder layer"
+    runs-on: ubuntu-latest
+    needs: j06-docker-deps
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
         with:
           context: .
           file: ${{ env.DOCKERFILE }}
@@ -269,8 +173,45 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64
 
-      # Step 6 — Build final runtime image and push to GHCR
-      - name: Step 6 — Build & push runtime image
+  # ══════════════════════════════════════════════════════════════
+  # TIER 3 — Push final image (needs builder layer)
+  # ══════════════════════════════════════════════════════════════
+
+  # ── Job 08 ── Build & push runtime image to GHCR
+  j08-push:
+    name: "08 · push runtime image"
+    runs-on: ubuntu-latest
+    needs: j07-docker-builder
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    outputs:
+      image-digest: ${{ steps.push.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract OCI metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=1.0.0,enable=${{ github.ref == 'refs/heads/main' }}
+          labels: |
+            org.opencontainers.image.title=The Myth of the Infinity
+            org.opencontainers.image.description=Manus Copilot Mission Control — Interplanetary Superintelligence
+            com.manus.package=the-mithy-of-the-infinity
+            com.manus.scope=interplanetary
+      - name: Build & push runtime image
         id: push
         uses: docker/build-push-action@v5
         with:
@@ -289,47 +230,34 @@ jobs:
           provenance: true
           sbom: true
           platforms: linux/amd64
-
-      # Step 7 — Confirm image was pushed and digest is available
-      - name: Step 7 — Verify image digest
+      - name: Verify digest + write summary
         run: |
           DIGEST="${{ steps.push.outputs.digest }}"
-          if [ -z "$DIGEST" ]; then
-            echo "❌ No digest returned — push may have failed"
-            exit 1
-          fi
-          echo "✅ Image pushed successfully"
-          echo "   Digest: $DIGEST"
-          echo "   Image:  ${{ env.IMAGE_NAME }}:latest"
-
-      # Step 8 — Write summary to GitHub Actions job summary
-      - name: Step 8 — Write build summary
-        run: |
+          [ -z "$DIGEST" ] && echo "❌ No digest returned" && exit 1
+          echo "✅ Pushed: ${{ env.IMAGE_NAME }}@$DIGEST"
           echo "## 🌌 the-mithy-of-the-infinity" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| **Image** | \`${{ env.IMAGE_NAME }}:latest\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Digest** | \`${{ steps.push.outputs.digest }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Digest** | \`$DIGEST\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Commit** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Package** | \`the-mithy-of-the-infinity\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Scope** | Interplanetary (Earth → Moon → Mars) |" >> $GITHUB_STEP_SUMMARY
 
-  # ─────────────────────────────────────────
-  # Job 3a: Security Scan (parallel with sbom-sign)
-  # ─────────────────────────────────────────
-  security-scan:
-    name: Security Scan — Trivy
+  # ══════════════════════════════════════════════════════════════
+  # TIER 4 — Post-push (parallel: security scan + SBOM sign)
+  # ══════════════════════════════════════════════════════════════
+
+  # ── Job 09 ── Trivy security scan
+  j09-security:
+    name: "09 · trivy security scan"
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: j08-push
     permissions:
       contents: read
       security-events: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Run Trivy vulnerability scanner
+      - uses: actions/checkout@v4
+      - name: Run Trivy
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: "${{ env.IMAGE_NAME }}:latest"
@@ -339,113 +267,38 @@ jobs:
         env:
           TRIVY_USERNAME: ${{ github.actor }}
           TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Trivy scan results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+      - uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: "trivy-results.sarif"
 
-  # ─────────────────────────────────────────
-  # Job 3b: SBOM & Provenance (parallel with security-scan)
-  # ─────────────────────────────────────────
-  sbom-sign:
-    name: SBOM & Sign — Cosign
+  # ── Job 10 ── Cosign sign + SBOM
+  j10-sbom-sign:
+    name: "10 · cosign sign + SBOM"
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: j08-push
     permissions:
       contents: read
       packages: write
       id-token: write
     steps:
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@v3
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
+      - uses: sigstore/cosign-installer@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Sign image with Cosign (keyless)
+      - name: Sign image (keyless)
         run: |
           cosign sign --yes \
-            ${{ env.IMAGE_NAME }}@${{ needs.build-and-push.outputs.image-digest }}
-
-      - name: Generate SBOM
-        uses: anchore/sbom-action@v0
+            ${{ env.IMAGE_NAME }}@${{ needs.j08-push.outputs.image-digest }}
+      - uses: anchore/sbom-action@v0
         with:
           image: ${{ env.IMAGE_NAME }}:latest
           format: spdx-json
           output-file: sbom.spdx.json
-
-      - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: sbom-spdx
           path: sbom.spdx.json
           retention-days: 30
-
-  # ─────────────────────────────────────────
-  # Job 4: Deploy to Azure Container Instances
-  # (only after security + sbom pass)
-  # ─────────────────────────────────────────
-  deploy-aci:
-    name: Deploy — Azure Container Instances
-    runs-on: ubuntu-latest
-    needs: [build-and-push, security-scan]
-    if: >
-      github.ref == 'refs/heads/main' &&
-      (github.event_name == 'push' || github.event.inputs.deploy_target == 'aci')
-    environment:
-      name: production
-      url: http://${{ env.ACI_DNS_LABEL }}.eastus.azurecontainer.io:8080/health
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Azure login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Deploy to Azure Container Instances
-        run: |
-          az container create \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name ${{ env.ACI_NAME }} \
-            --image ${{ env.IMAGE_NAME }}:latest \
-            --registry-server ghcr.io \
-            --registry-username ${{ github.actor }} \
-            --registry-password ${{ secrets.GITHUB_TOKEN }} \
-            --dns-name-label ${{ env.ACI_DNS_LABEL }} \
-            --ports 8080 \
-            --cpu 1 \
-            --memory 1.5 \
-            --environment-variables \
-              SERVER_ENV=production \
-              PACKAGE_NAME=the-mithy-of-the-infinity \
-              MANUS_ENABLE_PLANETARY=true \
-            --restart-policy Always \
-            --location eastus \
-            --os-type Linux \
-            --output table
-
-      - name: Verify deployment health
-        run: |
-          echo "Waiting for container to start..."
-          sleep 30
-          URL="http://${{ env.ACI_DNS_LABEL }}.eastus.azurecontainer.io:8080/health"
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL" || echo "000")
-          echo "Health check status: $STATUS"
-          if [[ "$STATUS" == "200" ]]; then
-            echo "✅ Deployment healthy at $URL" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⚠️ Health check returned $STATUS — container may still be starting" >> $GITHUB_STEP_SUMMARY
-          fi
