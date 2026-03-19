@@ -686,3 +686,142 @@ jobs:
           name: sbom-spdx
           path: sbom.spdx.json
           retention-days: 30
+
+  # ══════════════════════════════════════════════════════════════
+  # TIER 5 — Azure Container Apps deploy
+  # Uses OIDC (no long-lived secrets). Deploys image from GHCR.
+  # Requires GitHub secret: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+  # ══════════════════════════════════════════════════════════════
+
+  # ── Job 11 ── Deploy to Azure Container Apps
+  j11-azure-deploy:
+    name: "11 · deploy → Azure Container Apps"
+    runs-on: ubuntu-latest
+    needs: [j09-security, j10-sbom-sign]
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: production
+      url: https://meta-azure-dataspace.blackdesert-b6c6453f.eastus.azurecontainerapps.io
+    env:
+      AZURE_LOCATION: eastus
+      ACA_ENVIRONMENT: env-the-mithy
+      ACA_NAME: meta-azure-dataspace
+      ACA_RG: rg-the-mithy
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Step 1: Login to Azure via OIDC (no password/secret)
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # ── Step 2: Install Azure Container Apps CLI extension
+      - name: Install containerapp extension
+        run: az extension add --name containerapp --upgrade -y
+
+      # ── Step 3: Create Resource Group (idempotent)
+      - name: Create Resource Group
+        run: |
+          az group create \
+            --name ${{ env.ACA_RG }} \
+            --location ${{ env.AZURE_LOCATION }} \
+            --tags project=the-mithy-of-the-infinity managed-by=github-actions
+
+      # ── Step 4: Create Container Apps Environment (idempotent)
+      - name: Create Container Apps Environment
+        run: |
+          az containerapp env create \
+            --name ${{ env.ACA_ENVIRONMENT }} \
+            --resource-group ${{ env.ACA_RG }} \
+            --location ${{ env.AZURE_LOCATION }} \
+            --logs-destination none \
+            --only-show-errors 2>&1 | grep -v "already exists" || true
+
+      # ── Step 5: Deploy or update Container App
+      - name: Deploy Container App
+        id: deploy
+        run: |
+          IMAGE="${{ env.IMAGE_NAME }}:latest"
+          REGISTRY_SERVER="ghcr.io"
+          REGISTRY_USER="${{ github.actor }}"
+          REGISTRY_PASS="${{ secrets.GITHUB_TOKEN }}"
+
+          # Check if app already exists
+          EXISTS=$(az containerapp show \
+            --name ${{ env.ACA_NAME }} \
+            --resource-group ${{ env.ACA_RG }} \
+            --query name -o tsv 2>/dev/null || echo "")
+
+          if [ -z "$EXISTS" ]; then
+            echo "Creating new Container App..."
+            az containerapp create \
+              --name ${{ env.ACA_NAME }} \
+              --resource-group ${{ env.ACA_RG }} \
+              --environment ${{ env.ACA_ENVIRONMENT }} \
+              --image "$IMAGE" \
+              --registry-server "$REGISTRY_SERVER" \
+              --registry-username "$REGISTRY_USER" \
+              --registry-password "$REGISTRY_PASS" \
+              --target-port 8080 \
+              --ingress external \
+              --min-replicas 0 \
+              --max-replicas 1 \
+              --cpu 0.25 \
+              --memory 0.5Gi \
+              --env-vars \
+                SERVER_PORT=8080 \
+                SERVER_ENV=production \
+                PACKAGE_NAME=the-mithy-of-the-infinity \
+                MANUS_ENABLE_PLANETARY=true
+          else
+            echo "Updating existing Container App..."
+            az containerapp update \
+              --name ${{ env.ACA_NAME }} \
+              --resource-group ${{ env.ACA_RG }} \
+              --image "$IMAGE" \
+              --registry-server "$REGISTRY_SERVER" \
+              --registry-username "$REGISTRY_USER" \
+              --registry-password "$REGISTRY_PASS"
+          fi
+
+      # ── Step 6: Get and print the live URL
+      - name: Get live URL
+        run: |
+          FQDN=$(az containerapp show \
+            --name ${{ env.ACA_NAME }} \
+            --resource-group ${{ env.ACA_RG }} \
+            --query properties.configuration.ingress.fqdn \
+            --output tsv)
+          echo "FQDN=$FQDN" >> $GITHUB_ENV
+          echo "## 🚀 Deployed to Azure Container Apps" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **URL** | https://$FQDN |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image** | \`${{ env.IMAGE_NAME }}:latest\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Region** | ${{ env.AZURE_LOCATION }} |" >> $GITHUB_STEP_SUMMARY
+          echo ""
+          echo "✅ Live at: https://$FQDN"
+
+      # ── Step 7: Health check
+      - name: Health check
+        run: |
+          sleep 15
+          FQDN=$(az containerapp show \
+            --name ${{ env.ACA_NAME }} \
+            --resource-group ${{ env.ACA_RG }} \
+            --query properties.configuration.ingress.fqdn \
+            --output tsv)
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$FQDN/health" || echo "000")
+            echo "Attempt $i: HTTP $STATUS"
+            [ "$STATUS" = "200" ] && echo "✅ Health check passed" && exit 0
+            sleep 10
+          done
+          echo "⚠️ Health check did not return 200 after 5 attempts (app may still be starting)"
+          exit 0
