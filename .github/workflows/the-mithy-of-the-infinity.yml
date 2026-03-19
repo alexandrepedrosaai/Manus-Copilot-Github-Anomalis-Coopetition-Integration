@@ -180,7 +180,15 @@ jobs:
 
   # ─────────────────────────────────────────
   # Job 2: Build & Push to GHCR
-  # (only after all parallel checks pass)
+  # Broken into granular steps:
+  #   Step 1 — Checkout + Buildx setup
+  #   Step 2 — GHCR login
+  #   Step 3 — Extract OCI metadata/tags
+  #   Step 4 — Build Docker image (deps stage only, cached)
+  #   Step 5 — Build Docker image (builder stage, cached)
+  #   Step 6 — Build & push final runtime image
+  #   Step 7 — Verify pushed image digest
+  #   Step 8 — Write build summary
   # ─────────────────────────────────────────
   build-and-push:
     name: Build & Push — the-mithy-of-the-infinity
@@ -191,27 +199,28 @@ jobs:
       packages: write
       id-token: write
     outputs:
-      image-digest: ${{ steps.build.outputs.digest }}
+      image-digest: ${{ steps.push.outputs.digest }}
       image-tag: ${{ steps.meta.outputs.version }}
     steps:
-      - name: Checkout
+      # Step 1 — Checkout source and set up Docker Buildx
+      - name: Step 1 — Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
+      - name: Step 1 — Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
-          driver-opts: |
-            image=moby/buildkit:latest
-            network=host
+          driver-opts: network=host
 
-      - name: Login to GitHub Container Registry
+      # Step 2 — Authenticate to GHCR
+      - name: Step 2 — Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
+      # Step 3 — Generate OCI-compliant image tags and labels
+      - name: Step 3 — Extract OCI metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -226,8 +235,43 @@ jobs:
             com.manus.package=the-mithy-of-the-infinity
             com.manus.scope=interplanetary
 
-      - name: Build and push Docker image
-        id: build
+      # Step 4 — Build deps stage only (warm the layer cache)
+      - name: Step 4 — Build deps layer (cache warm-up)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          target: deps
+          push: false
+          build-args: |
+            BUILD_VERSION=1.0.0
+            BUILD_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            PACKAGE_NAME=${{ env.PACKAGE_NAME }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      # Step 5 — Build builder stage (compile Go binary, cached)
+      - name: Step 5 — Build Go binary layer (builder stage)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          target: builder
+          push: false
+          build-args: |
+            BUILD_VERSION=1.0.0
+            BUILD_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            PACKAGE_NAME=${{ env.PACKAGE_NAME }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      # Step 6 — Build final runtime image and push to GHCR
+      - name: Step 6 — Build & push runtime image
+        id: push
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -246,14 +290,27 @@ jobs:
           sbom: true
           platforms: linux/amd64
 
-      - name: Write build summary
+      # Step 7 — Confirm image was pushed and digest is available
+      - name: Step 7 — Verify image digest
+        run: |
+          DIGEST="${{ steps.push.outputs.digest }}"
+          if [ -z "$DIGEST" ]; then
+            echo "❌ No digest returned — push may have failed"
+            exit 1
+          fi
+          echo "✅ Image pushed successfully"
+          echo "   Digest: $DIGEST"
+          echo "   Image:  ${{ env.IMAGE_NAME }}:latest"
+
+      # Step 8 — Write summary to GitHub Actions job summary
+      - name: Step 8 — Write build summary
         run: |
           echo "## 🌌 the-mithy-of-the-infinity" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| **Image** | \`${{ env.IMAGE_NAME }}:latest\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Digest** | \`${{ steps.build.outputs.digest }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Digest** | \`${{ steps.push.outputs.digest }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Commit** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Package** | \`the-mithy-of-the-infinity\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Scope** | Interplanetary (Earth → Moon → Mars) |" >> $GITHUB_STEP_SUMMARY
