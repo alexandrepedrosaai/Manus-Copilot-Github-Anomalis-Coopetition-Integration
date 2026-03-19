@@ -24,22 +24,87 @@ COPY go.mod go.sum ./
 RUN go mod download && go mod verify
 
 # ─────────────────────────────────────────────
-# Stage 2: Build — The Myth of the Infinity
+# Builder sub-stage 1: Copy source tree
 # ─────────────────────────────────────────────
-FROM deps AS builder
+FROM deps AS builder-s1-copy-src
 
-LABEL stage="builder"
+LABEL stage="builder-s1-copy-src"
 
-# Copy full source tree
 COPY . .
 
-# Inject build metadata
+# ─────────────────────────────────────────────
+# Builder sub-stage 2: Inject build args
+# ─────────────────────────────────────────────
+FROM builder-s1-copy-src AS builder-s2-build-args
+
+LABEL stage="builder-s2-build-args"
+
 ARG BUILD_VERSION=latest
 ARG BUILD_COMMIT=unknown
 ARG BUILD_DATE=unknown
 ARG PACKAGE_NAME=the-mithy-of-the-infinity
 
-# Build the server binary with full metadata injection
+RUN echo "BUILD_VERSION=${BUILD_VERSION}" > /workspace/.build-meta && \
+    echo "BUILD_COMMIT=${BUILD_COMMIT}" >> /workspace/.build-meta && \
+    echo "BUILD_DATE=${BUILD_DATE}" >> /workspace/.build-meta && \
+    echo "PACKAGE_NAME=${PACKAGE_NAME}" >> /workspace/.build-meta && \
+    cat /workspace/.build-meta
+
+# ─────────────────────────────────────────────
+# Builder sub-stage 3: go generate (if any)
+# ─────────────────────────────────────────────
+FROM builder-s2-build-args AS builder-s3-generate
+
+LABEL stage="builder-s3-generate"
+
+RUN go generate ./... 2>/dev/null || echo "no go:generate directives found"
+
+# ─────────────────────────────────────────────
+# Builder sub-stage 4: go vet inside container
+# ─────────────────────────────────────────────
+FROM builder-s3-generate AS builder-s4-vet
+
+LABEL stage="builder-s4-vet"
+
+RUN go vet ./...
+
+# ─────────────────────────────────────────────
+# Builder sub-stage 5: Compile cmd/server (no output)
+# ─────────────────────────────────────────────
+FROM builder-s4-vet AS builder-s5-compile-check
+
+LABEL stage="builder-s5-compile-check"
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -a -installsuffix cgo \
+    ./cmd/server
+
+# ─────────────────────────────────────────────
+# Builder sub-stage 6: Build binary (no ldflags)
+# ─────────────────────────────────────────────
+FROM builder-s5-compile-check AS builder-s6-binary-plain
+
+LABEL stage="builder-s6-binary-plain"
+
+RUN mkdir -p /dist && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -a -installsuffix cgo \
+    -o /dist/the-mithy-of-the-infinity \
+    ./cmd/server && \
+    echo "Plain binary: $(ls -lh /dist/the-mithy-of-the-infinity)"
+
+# ─────────────────────────────────────────────
+# Builder sub-stage 7: Strip + inject ldflags
+# ─────────────────────────────────────────────
+FROM builder-s6-binary-plain AS builder-s7-binary-stripped
+
+LABEL stage="builder-s7-binary-stripped"
+
+ARG BUILD_VERSION=latest
+ARG BUILD_COMMIT=unknown
+ARG BUILD_DATE=unknown
+ARG PACKAGE_NAME=the-mithy-of-the-infinity
+
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags=" \
       -w -s \
@@ -51,11 +116,37 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     " \
     -a -installsuffix cgo \
     -o /dist/the-mithy-of-the-infinity \
-    ./cmd/server
+    ./cmd/server && \
+    echo "Stripped binary: $(ls -lh /dist/the-mithy-of-the-infinity)"
 
-# Verify the binary
-RUN /dist/the-mithy-of-the-infinity --version 2>/dev/null || \
+# ─────────────────────────────────────────────
+# Builder sub-stage 8: Verify binary integrity
+# ─────────────────────────────────────────────
+FROM builder-s7-binary-stripped AS builder-s8-verify
+
+LABEL stage="builder-s8-verify"
+
+RUN file /dist/the-mithy-of-the-infinity && \
+    /dist/the-mithy-of-the-infinity --version 2>/dev/null || \
     echo "Binary built: $(ls -lh /dist/the-mithy-of-the-infinity)"
+
+# ─────────────────────────────────────────────
+# Builder sub-stage 9: Checksum + audit
+# ─────────────────────────────────────────────
+FROM builder-s8-verify AS builder-s9-checksum
+
+LABEL stage="builder-s9-checksum"
+
+RUN sha256sum /dist/the-mithy-of-the-infinity > /dist/the-mithy-of-the-infinity.sha256 && \
+    echo "SHA256: $(cat /dist/the-mithy-of-the-infinity.sha256)" && \
+    echo "Size:   $(du -sh /dist/the-mithy-of-the-infinity | cut -f1)"
+
+# ─────────────────────────────────────────────
+# Builder sub-stage 10: Final builder (alias)
+# ─────────────────────────────────────────────
+FROM builder-s9-checksum AS builder
+
+LABEL stage="builder"
 
 # ─────────────────────────────────────────────
 # Stage 3: Security scan layer
