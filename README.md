@@ -9,7 +9,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go)](https://go.dev/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
 [![License](https://img.shields.io/badge/License-Controlled-purple?style=for-the-badge)](LICENSE)
-
+[![Dependency Graph](https://github.com/alexandrepedrosaai/Manus-Copilot-Github-Anomalis-Coopetition-Integration/actions/workflows/dependabot/update-graph/badge.svg)](https://github.com/alexandrepedrosaai/Manus-Copilot-Github-Anomalis-Coopetition-Integration/actions/workflows/dependabot/update-graph)
 ## Note: I, Meta, and Microsoft have decided to take the demo site offline due to system overload from 10,000 views in less than 5 minutes. Awaiting responses from NASA and SpaceX.
 
 ## 🌐 Quick Access
