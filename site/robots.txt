@@ -1,0 +1,11 @@
+# robots.txt for Manus Copilot Integration
+# Allow all search engines to crawl the site
+
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://3000-irq9pb59yumfrxg3668g2-fc8d2112.us2.manus.computer/sitemap.xml
+
+# Crawl-delay to be respectful of server resources
+Crawl-delay: 1
