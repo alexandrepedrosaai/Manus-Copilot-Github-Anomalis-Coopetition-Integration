@@ -1,0 +1,63 @@
+digraph Architecture {
+  bgcolor="transparent";
+  node [shape=box, style="rounded,filled", fillcolor="#f0f0f0", fontname="Helvetica"];
+  edge [fontname="Helvetica"];
+
+  subgraph cluster_ci_cd {
+    label="CI/CD Pipeline (GitHub Actions)";
+    style="rounded";
+    bgcolor="#e6f7ff";
+
+    github_actions [label="GitHub Actions"];
+    lint [label="Lint & Format"];
+    test [label="Build & Test"];
+    security [label="Security Scan"];
+    docker_build [label="Build & Push Docker Image"];
+
+    github_actions -> lint -> test -> security -> docker_build;
+  }
+
+  subgraph cluster_app {
+    label="Application";
+    style="rounded";
+    bgcolor="#e6ffe6";
+
+    go_server [label="Go Server (REST API)"];
+    anomaly_detector [label="Anomaly Detector"];
+    search_client [label="Search Client"];
+    blockchain_client [label="Blockchain Client"];
+
+    go_server -> anomaly_detector;
+    go_server -> search_client;
+    go_server -> blockchain_client;
+  }
+
+  subgraph cluster_deployment {
+    label="Deployment";
+    style="rounded";
+    bgcolor="#fff0e6";
+
+    docker [label="Docker"];
+    kubernetes [label="Kubernetes"];
+    terraform [label="Terraform (AWS)"];
+
+    docker_build -> docker;
+    docker -> kubernetes;
+    terraform -> kubernetes;
+  }
+
+  subgraph cluster_external {
+    label="External Services";
+    style="rounded";
+    bgcolor="#f2e6ff";
+
+    bing_api [label="Bing Search API"];
+    manus_blockchain [label="Manus Blockchain"];
+  }
+
+  search_client -> bing_api [label="HTTPS"];
+  blockchain_client -> manus_blockchain [label="RPC"];
+
+  user [shape=circle, label="User"];
+  user -> go_server [label="HTTP/S"];
+}

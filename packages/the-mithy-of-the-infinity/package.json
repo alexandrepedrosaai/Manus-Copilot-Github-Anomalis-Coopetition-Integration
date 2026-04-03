@@ -1,0 +1,58 @@
+{
+  "name": "the-mithy-of-the-infinity",
+  "version": "1.0.0",
+  "description": "Manus Copilot Mission Control — Algorithmic Interoperability Between Superintelligences. Interplanetary auditability across Earth, Moon, and Mars via Azure Blockchain 2.0 and post-quantum cryptography.",
+  "author": "Alexandre Pedrosa <alexandrepedrosaai>",
+  "license": "All Rights Reserved",
+  "copyright": "(c) 2025-2026 Alexandre Pedrosa. All Rights Reserved.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alexandrepedrosaai/Manus-Copilot-Github-Anomalis-Coopetition-Integration"
+  },
+  "runtime": {
+    "language": "go",
+    "version": "1.22",
+    "entrypoint": "./cmd/server",
+    "binary": "the-mithy-of-the-infinity"
+  },
+  "container": {
+    "dockerfile": "packages/the-mithy-of-the-infinity/Dockerfile",
+    "image": "ghcr.io/alexandrepedrosaai/the-mithy-of-the-infinity",
+    "port": 8080,
+    "registry": "ghcr.io",
+    "stages": ["deps", "builder", "security-base", "runtime"]
+  },
+  "azure": {
+    "subscription_id": "f7fc86dd-bd9f-43a6-80a4-0bb6cab950ec",
+    "resource_group": "acs-wpp-mesh-rg",
+    "container_registry": "acswppmesh1771568067",
+    "aks_cluster": "manus-copilot-aks",
+    "region": "eastus"
+  },
+  "architecture": {
+    "scope": "interplanetary",
+    "nodes": ["earth", "moon", "mars"],
+    "blockchain": "Azure Blockchain 2.0",
+    "pq_crypto": ["CRYSTALS-Kyber-1024", "CRYSTALS-Dilithium-5"],
+    "integrations": ["Meta WhatsApp (WPP)", "Azure ACS", "GitHub Copilot", "xAI xChat", "NASA", "SpaceX Starlink"]
+  },
+  "scripts": {
+    "build": "docker build -f packages/the-mithy-of-the-infinity/Dockerfile -t the-mithy-of-the-infinity:latest .",
+    "run": "docker run -p 8080:8080 --env-file .env the-mithy-of-the-infinity:latest",
+    "push": "docker push ghcr.io/alexandrepedrosaai/the-mithy-of-the-infinity:latest",
+    "test": "go test ./... -race -cover",
+    "lint": "golangci-lint run ./..."
+  },
+  "keywords": [
+    "manus",
+    "copilot",
+    "interplanetary",
+    "blockchain",
+    "post-quantum-cryptography",
+    "azure",
+    "whatsapp",
+    "superintelligence",
+    "anomaly-detection",
+    "go"
+  ]
+}

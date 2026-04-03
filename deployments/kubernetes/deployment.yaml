@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: manus-copilot-server
+  labels:
+    app: manus-copilot
+    component: server
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: manus-copilot
+      component: server
+  template:
+    metadata:
+      labels:
+        app: manus-copilot
+        component: server
+    spec:
+      containers:
+      - name: manus-server
+        image: ghcr.io/alexandrepedrosaai/manus-copilot-github-anomalis-coopetition-integration:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: SERVER_PORT
+          value: "8080"
+        - name: SERVER_HOST
+          value: "0.0.0.0"
+        - name: ENVIRONMENT
+          value: "production"
+        - name: BING_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: manus-secrets
+              key: bing-api-key
+        - name: BING_ENDPOINT
+          value: "https://api.bing.microsoft.com/v7.0/search"
+        - name: MANUS_NODE_URL
+          value: "http://manus-blockchain-service:9545"
+        - name: MANUS_NETWORK_ID
+          value: "1"
+        - name: MANUS_ENABLE_PLANETARY
+          value: "true"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      restartPolicy: Always
+      securityContext:
+        fsGroup: 1000
